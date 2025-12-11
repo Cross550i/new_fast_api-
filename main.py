@@ -1,10 +1,11 @@
 import uvicorn
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.sql.annotation import Annotated
-from app.db.models import BookModel
+from sqlalchemy import select
+from typing import Annotated
 from app.db.database import Base
+from app.db.models import BookModel
 
 app = FastAPI()
 
@@ -62,20 +63,46 @@ async def add_new_book(data: BookSchema, session: SessionDep):
 
 
 @app.get("/get_all_books")
-async def get_all_books():
-    ...
+async def get_all_books(session: SessionDep):
+    query = select(BookModel)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+
 
 @app.get("/get_book_by_id")
-async def get_book_by_id():
-    ...
+async def get_book_by_id(book_id: int, session: SessionDep):
+    book = await session.get(BookModel, book_id)
+    if book is None:
+        raise HTTPException(status_code=404, detail="Книга не найдена")
+    return book
 
-@app.put("/update_all")
-async def update_all():
-    ...
+
+@app.put("/update_books_by_id")
+async def update_books_by_id(book_id: int, data:BookAddSchema, session: SessionDep):
+    book = await session.get(BookModel, book_id)
+    if book is None:
+        raise HTTPException(status_code=404, detail="Книга не найдена")
+    book.name = data.name
+    book.author = data.author
+    book.published_year = data.published_year
+    await session.commit()
+    await session.refresh(book)
+    return {"Книги обновлены"}
+
+
 
 @app.delete("/del_by_id")
-async def del_by_id():
-    ...
+async def del_by_id(book_id: int, session: SessionDep):
+    book = await session.get(BookModel, book_id)
+    if book is None:
+        raise HTTPException(status_code=404, detail="Книга не найдена")
+    await session.delete(book)
+    await session.commit()
+    return {"Книга удалена": True, "id": book_id}
+
+
+
 
 
 
