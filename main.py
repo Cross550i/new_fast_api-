@@ -6,19 +6,18 @@ from sqlalchemy import select
 from typing import Annotated
 from app.db.database import Base
 from app.db.models import BookModel
+from app.config import settings
+from uuid import UUID
+from uuid import uuid4
 
 app = FastAPI()
 
 # Движок
-engine = create_async_engine("sqlite+aiosqlite:///books.db", echo=True)
+engine = create_async_engine(settings.db_url, echo=True)
 
 # Фабрика сессий
-async_session = async_sessionmaker(engine)
-
-
-
-
 new_session = async_sessionmaker(engine, expire_on_commit=False)
+
 
 async def get_session():
     async with new_session() as session:
@@ -45,13 +44,14 @@ class BookAddSchema(BaseModel):
     published_year:int
 
 class BookSchema(BookAddSchema):
-    id:int
+    id:UUID
 
 
 
 @app.post("/add_new_book")
-async def add_new_book(data: BookSchema, session: SessionDep):
+async def add_new_book(data: BookAddSchema, session: SessionDep):
     new_book = BookModel(
+        # id=str(uuid4()),
         name=data.name,
         author=data.author,
         published_year=data.published_year
@@ -71,7 +71,7 @@ async def get_all_books(session: SessionDep):
 
 
 @app.get("/get_book_by_id")
-async def get_book_by_id(book_id: int, session: SessionDep):
+async def get_book_by_id(book_id: UUID, session: SessionDep):
     book = await session.get(BookModel, book_id)
     if book is None:
         raise HTTPException(status_code=404, detail="Книга не найдена")
@@ -79,7 +79,7 @@ async def get_book_by_id(book_id: int, session: SessionDep):
 
 
 @app.put("/update_books_by_id")
-async def update_books_by_id(book_id: int, data:BookAddSchema, session: SessionDep):
+async def update_books_by_id(book_id: UUID, data:BookAddSchema, session: SessionDep):
     book = await session.get(BookModel, book_id)
     if book is None:
         raise HTTPException(status_code=404, detail="Книга не найдена")
@@ -93,7 +93,7 @@ async def update_books_by_id(book_id: int, data:BookAddSchema, session: SessionD
 
 
 @app.delete("/del_by_id")
-async def del_by_id(book_id: int, session: SessionDep):
+async def del_by_id(book_id: UUID, session: SessionDep):
     book = await session.get(BookModel, book_id)
     if book is None:
         raise HTTPException(status_code=404, detail="Книга не найдена")
@@ -108,5 +108,4 @@ async def del_by_id(book_id: int, session: SessionDep):
 
 # Точка входа в приложение
 if __name__== "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port= 8000, reload=True)
-
+    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True)
