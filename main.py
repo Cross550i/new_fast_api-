@@ -8,9 +8,19 @@ from app.db.database import Base
 from app.db.models import BookModel
 from app.config import settings
 from uuid import UUID
-from uuid import uuid4
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Движок
 engine = create_async_engine(settings.db_url, echo=True)
@@ -51,7 +61,6 @@ class BookSchema(BookAddSchema):
 @app.post("/add_new_book")
 async def add_new_book(data: BookAddSchema, session: SessionDep):
     new_book = BookModel(
-        # id=str(uuid4()),
         name=data.name,
         author=data.author,
         published_year=data.published_year
