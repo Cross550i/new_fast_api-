@@ -1,8 +1,9 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from typing import Annotated
 from app.db.database import Base
 from app.db.models import BookModel, UserModel, Gender
@@ -59,6 +60,12 @@ class BookSchema(BookAddSchema):
     id:UUID
 
 
+class BookUpdate(BaseModel):
+    name:Optional[str] = None
+    author:Optional[str] = None
+    published_year:Optional[int] = None
+
+
 
 # Pydantic схема (Model)
 class UserAddSchema(BaseModel):
@@ -77,6 +84,20 @@ class UserAddSchema(BaseModel):
 class UserSchema(UserAddSchema):
     id:UUID
     reg_date: datetime
+
+
+
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    age: Optional[int] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    country: Optional[str] = None
+    balance: Optional[float] = None
+    bonus_balance: Optional[int] = None
+    gender: Optional[Gender] = None
 
 
 
@@ -130,36 +151,36 @@ async def get_book_by_id(book_id: UUID, session: SessionDep):
     return book
 
 
-@app.patch("/users/{user_id}")
-async def partial_update_user_by_id(
-        user_id: UUID,
-        data: UserAddSchema,
-        session: SessionDep
-):
+@app.put("/update_user_by_id")
+async def update_user_by_id(user_id: UUID, user_update: UserUpdate, session: SessionDep):
     user = await session.get(UserModel, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    update_data = data.model_dump(exclude_unset=True, exclude_none=True)
+    update_data = user_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
-        setattr(user, field, value)
+        setattr(user, field, value)         # setattr цикл автоматом берет все поля из class UserUpdate
 
     await session.commit()
     await session.refresh(user)
-    return {"User updated!"}
+    return user
+
+
 
 
 @app.put("/update_book_by_id")
-async def update_book_by_id(book_id: UUID, data:BookAddSchema, session: SessionDep):
+async def update_book_by_id(book_id: UUID, book_update: BookUpdate, session: SessionDep):
     book = await session.get(BookModel, book_id)
     if book is None:
         raise HTTPException(status_code=404, detail="Book not found")
-    book.name = data.name
-    book.author = data.author
-    book.published_year = data.published_year
+
+    update_data = book_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(book, field, value)
+
     await session.commit()
     await session.refresh(book)
-    return {"Книга обновлена"}
+    return {"Book update!"}
 
 
 @app.delete("/del_user_by_id")
@@ -167,6 +188,7 @@ async def del_user_by_id(user_id: UUID, session: SessionDep):
     user = await session.get(UserModel, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+
     await session.delete(user)
     await session.commit()
     return {"User deleted": True, "id": user_id}
@@ -177,6 +199,7 @@ async def del_book_by_id(book_id: UUID, session: SessionDep):
     book = await session.get(BookModel, book_id)
     if book is None:
         raise HTTPException(status_code=404, detail="Book not found")
+
     await session.delete(book)
     await session.commit()
     return {"Book deleted": True, "id": book_id}
